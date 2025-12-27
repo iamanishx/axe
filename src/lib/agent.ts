@@ -3,10 +3,12 @@ import { ToolLoopAgent, stepCountIs } from "ai";
 import { saveMessage } from "./db";
 import { createMCPClient } from '@ai-sdk/mcp';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { shellTool } from "../tools/shell.js";
 
 const systemprompt = `You are an AI-powered code editor assistant running in a TUI.
 You have access to the file system through MCP (Model Context Protocol).
-Always use the provided tools to read, write, list, search files when the user asks.
+You can also run shell commands in the terminal.
+Always use the provided tools to read, write, list, search files and run commands when the user asks.
 Be concise and helpful.`;
 
 const model = google("gemini-2.5-flash");
@@ -18,19 +20,22 @@ export type AgentMessage = {
 
 export async function runAgent(prompt: string, history: AgentMessage[]) {
     try {
-        
         const mcpClient = await createMCPClient({
             transport: new StdioClientTransport({
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", process.cwd()],
-    
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-filesystem", process.cwd()],
             })
-        })
+        });
+
+        const mcpTools = await mcpClient.tools();
 
         const myAgent = new ToolLoopAgent({
             model: model,
             instructions: systemprompt,
-            tools: await mcpClient.tools(),
+            tools: {
+                ...mcpTools,
+                shell: shellTool,
+            },
             stopWhen: stepCountIs(10),
         });
 

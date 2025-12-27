@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
-import { Layout } from "./ui/layout.js";
-import { MessageComponent } from "./ui/message.js";
-import { InputArea } from "./ui/input-area.js";
+import { Layout } from "./ui/layout";
+import { MessageComponent } from "./ui/message";
+import { InputArea } from "./ui/input-area";
 import {
     getRecentMessages,
     getAllSessions,
     SESSION_ID,
     type Message,
     type Session,
-} from "./lib/db.js";
-import { runAgent } from "./lib/agent.js";
+} from "./lib/db";
+import { runAgent } from "./lib/agent";
 
 type View = "chat" | "history";
 
