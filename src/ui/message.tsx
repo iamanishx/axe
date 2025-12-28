@@ -12,7 +12,7 @@ export const MessageComponent: React.FC<MessageProps> = ({ role, content }) => {
     return (
         <Box flexDirection="column" marginBottom={1}>
             <Text color={isUser ? "green" : "cyan"} bold>
-                {isUser ? "❯ You" : "❯ AI"}:
+                {isUser ? "❯ You" : "| AI"}:
             </Text>
             <Box paddingLeft={2}>
                 <Text>{content}</Text>
