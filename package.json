@@ -1,8 +1,32 @@
 {
-  "name": "bun-tui",
-  "module": "index.ts",
+  "name": "axe-cli",
+  "version": "0.1.0",
+  "description": "AI-powered TUI code editor with MCP filesystem access",
+  "module": "src/index.tsx",
   "type": "module",
-  "private": true,
+  "bin": {
+    "axe": "./bin/axe.js"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "keywords": [
+    "ai",
+    "cli",
+    "tui",
+    "code-editor",
+    "mcp",
+    "gemini",
+    "openai",
+    "anthropic"
+  ],
+  "author": "iamanishx",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iamanishx/axe.git"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.2.7",
@@ -21,7 +45,6 @@
     "@ai-sdk/openai-compatible": "^2.0.1",
     "@ai-sdk/xai": "^3.0.1",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "add": "^2.0.6",
     "ai": "^6.0.3",
     "dotenv": "^17.2.3",
     "ink": "^6.6.0",
