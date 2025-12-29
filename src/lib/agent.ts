@@ -1,16 +1,19 @@
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { saveMessage } from "./db";
+import { saveMessage } from "./db.js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { shellTool } from "../tools/shell";
-import { getModel } from "./provider";
-import { loadConfig } from "./config";
+import { shellTool } from "../tools/shell.js";
+import { getModel } from "./provider.js";
+import { loadConfig } from "./config.js";
 
 const systemprompt = `You are an AI-powered code editor assistant running in a TUI.
-You have access to the file system through MCP (Model Context Protocol).
-You can also run shell commands in the terminal.
-Always use the provided tools to read, write, list, search files and run commands when the user asks.
-Be concise and helpful.`;
+You have access to:
+- File system (read, write, list, search files via MCP)
+- Shell commands (run terminal commands)
+- Web search (search DuckDuckGo for docs, references, solutions)
+- Fetch content (grab webpage content for context)
+
+Always use tools when needed. Be concise and helpful.`;
 
 export type AgentMessage = {
     role: "user" | "assistant";
@@ -22,20 +25,29 @@ export async function runAgent(prompt: string, history: AgentMessage[]) {
         const config = loadConfig();
         const model = getModel(config.provider, config.model);
 
-        const mcpClient = await createMCPClient({
+        const fsClient = await createMCPClient({
             transport: new StdioClientTransport({
                 command: "npx",
                 args: ["-y", "@modelcontextprotocol/server-filesystem", process.cwd()],
             }),
         });
 
-        const mcpTools = await mcpClient.tools();
+        const searchClient = await createMCPClient({
+            transport: new StdioClientTransport({
+                command: "uvx",
+                args: ["duckduckgo-mcp-server"],
+            }),
+        });
+
+        const fsTools = await fsClient.tools();
+        const searchTools = await searchClient.tools();
 
         const myAgent = new ToolLoopAgent({
             model: model,
             instructions: systemprompt,
             tools: {
-                ...mcpTools,
+                ...fsTools,
+                ...searchTools,
                 shell: shellTool,
             },
             stopWhen: stepCountIs(100),
