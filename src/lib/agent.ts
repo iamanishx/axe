@@ -1,10 +1,10 @@
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { saveMessage } from "./db.js";
+import { saveMessage } from "./db";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { shellTool } from "../tools/shell.js";
-import { getModel } from "./provider.js";
-import { loadConfig } from "./config.js";
+import { shellTool } from "../tools/shell";
+import { getModel } from "./provider";
+import { loadConfig } from "./config";
 
 const systemprompt = `You are an AI-powered code editor assistant running in a TUI.
 You have access to the file system through MCP (Model Context Protocol).

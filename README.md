@@ -1,6 +1,6 @@
 # axe
 
-AI-powered TUI code editor. Talk to your codebase from the terminal.
+AI-powered TUI code assistant. Talk to your codebase from the terminal.
 
 ![axe demo](public/image.png)
 
