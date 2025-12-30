@@ -5,16 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
 import { loadConfig } from "./config.js";
-
-const systemprompt = `You are an AI-powered code editor assistant running in a TUI.
-You have access to:
-- File system (read, write, list, search files via MCP)
-- Shell commands (run terminal commands)
-- Web search (search DuckDuckGo for docs, references, solutions)
-- Fetch content (grab webpage content for context)
-
-Always use tools when needed. Be concise and helpful.`;
-
+import {systemprompt} from "./prompt.js";
 export type AgentMessage = {
     role: "user" | "assistant";
     content: string;
@@ -79,7 +70,6 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[]): 
 
         saveMessage("assistant", fullText);
     } catch (error: any) {
-        console.error("Agent Error:", error);
         yield { type: "text", content: `Error: ${error.message}` };
     }
 }

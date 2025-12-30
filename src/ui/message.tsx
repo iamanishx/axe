@@ -17,8 +17,8 @@ export const MessageComponent: React.FC<MessageProps> = React.memo(({ role, cont
             </Text>
             <Box paddingLeft={2} flexDirection="column">
                 {thinking && (
-                    <Box marginBottom={1}>
-                        <Text color="gray" dimColor>
+                    <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="dim">
+                        <Text color="yellow">
                             ⚙ {thinking}
                         </Text>
                     </Box>

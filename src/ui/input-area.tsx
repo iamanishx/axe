@@ -17,7 +17,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onSubmit, isLoading }) => 
     };
 
     return (
-        <Box borderStyle="round" borderColor="gray" paddingX={1}>
+        <Box paddingX={1} paddingTop={1}>
             <Box marginRight={1}>
                 <Text color="green">❯</Text>
             </Box>
