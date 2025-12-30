@@ -4,6 +4,7 @@ import { groq } from "@ai-sdk/groq";
 import { anthropic } from "@ai-sdk/anthropic";
 import { xai } from "@ai-sdk/xai";
 import { loadConfig, getApiKey, type ProviderName } from "./config.js";
+import { createGeminiProvider } from 'ai-sdk-provider-gemini-cli';
 
 const OPENAI_COMPATIBLE_URLS: Record<string, string> = {
     deepseek: "https://api.deepseek.com",
@@ -12,6 +13,10 @@ const OPENAI_COMPATIBLE_URLS: Record<string, string> = {
     minimax: "https://api.minimax.chat/v1",
     openai: "https://api.openai.com/v1",
 };
+
+const gemini = createGeminiProvider({
+  authType: 'oauth-personal',
+});
 
 export function getModel(providerName?: ProviderName, modelName?: string) {
     const config = loadConfig();
@@ -32,6 +37,9 @@ export function getModel(providerName?: ProviderName, modelName?: string) {
         case "xai":
             return xai(model);
 
+        case "gemini":
+            return gemini(model);
+            
         case "openai":
         case "deepseek":
         case "qwen":
@@ -59,4 +67,5 @@ export const PROVIDER_MODELS: Record<ProviderName, string[]> = {
     qwen: ["qwen-turbo", "qwen-plus", "qwen-max"],
     kimi: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
     minimax: ["abab6.5-chat", "abab5.5-chat"],
+    gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview","gemini-3-flash-preview"],
 };

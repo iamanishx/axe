@@ -20,7 +20,11 @@ export type AgentMessage = {
     content: string;
 };
 
-export async function runAgent(prompt: string, history: AgentMessage[]) {
+export type StreamEvent =
+    | { type: "text"; content: string }
+    | { type: "thinking"; content: string };
+
+export async function* runAgentStream(prompt: string, history: AgentMessage[]): AsyncGenerator<StreamEvent> {
     try {
         const config = loadConfig();
         const model = getModel(config.provider, config.model);
@@ -58,16 +62,24 @@ export async function runAgent(prompt: string, history: AgentMessage[]) {
             { role: "user" as const, content: prompt },
         ];
 
-        const result = await myAgent.generate({ messages });
-
-        const text = result.text ?? "";
+        const result = await myAgent.stream({ messages });
 
         saveMessage("user", prompt);
-        saveMessage("assistant", text);
+        let fullText = "";
 
-        return text;
+        for await (const part of result.fullStream) {
+            if (part.type === "text-delta") {
+                const content = part.text;
+                fullText += content;
+                yield { type: "text", content };
+            } else if (part.type === "tool-call") {
+                yield { type: "thinking", content: `Using tool: ${part.toolName}` };
+            }
+        }
+
+        saveMessage("assistant", fullText);
     } catch (error: any) {
         console.error("Agent Error:", error);
-        return `Error: ${error.message}`;
+        yield { type: "text", content: `Error: ${error.message}` };
     }
 }

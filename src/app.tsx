@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput, Static } from "ink";
 import { Layout } from "./ui/layout.js";
 import { MessageComponent } from "./ui/message.js";
 import { InputArea } from "./ui/input-area.js";
@@ -12,7 +12,7 @@ import {
     type Message,
     type Session,
 } from "./lib/db.js";
-import { runAgent } from "./lib/agent.js";
+import { runAgentStream } from "./lib/agent.js";
 import { loadConfig, setProvider, type ProviderName } from "./lib/config.js";
 import { PROVIDER_MODELS } from "./lib/provider.js";
 
@@ -20,24 +20,20 @@ type View = "chat" | "history" | "provider" | "model";
 
 export const App = () => {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [streamingContent, setStreamingContent] = useState("");
+    const [thinking, setThinking] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [view, setView] = useState<View>("chat");
     const [currentDirSessions, setCurrentDirSessions] = useState<Session[]>([]);
     const [otherDirSessions, setOtherDirSessions] = useState<Session[]>([]);
-    const [scrollOffset, setScrollOffset] = useState(0);
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [config, setConfig] = useState(loadConfig());
 
-    const { stdout } = useStdout();
-    const terminalHeight = stdout?.rows ?? 24;
-    const visibleMessages = Math.max(5, terminalHeight - 8);
-
     useEffect(() => {
         try {
-            const recent = getRecentMessages(100);
+            const recent = getRecentMessages(1000);
             setMessages(recent);
-            setScrollOffset(Math.max(0, recent.length - visibleMessages));
         } catch (e: any) {
             setError("Failed to load database: " + e.message);
         }
@@ -57,9 +53,8 @@ export const App = () => {
             if (key.downArrow) setSelectedIdx((p) => Math.min(allSessions.length - 1, p + 1));
             if (key.return && allSessions[selectedIdx]) {
                 const session = allSessions[selectedIdx];
-                const msgs = getSessionMessages(session.id, 100);
+                const msgs = getSessionMessages(session.id, 1000);
                 setMessages(msgs);
-                setScrollOffset(Math.max(0, msgs.length - visibleMessages));
                 setView("chat");
             }
             return;
@@ -98,8 +93,7 @@ export const App = () => {
             return;
         }
 
-        if (key.pageUp) setScrollOffset((prev) => Math.max(0, prev - 5));
-        if (key.pageDown) setScrollOffset((prev) => Math.min(Math.max(0, messages.length - visibleMessages), prev + 5));
+
     });
 
     const handleInput = async (input: string) => {
@@ -127,7 +121,6 @@ export const App = () => {
 
         if (cmd === "/clear") {
             setMessages([]);
-            setScrollOffset(0);
             return;
         }
 
@@ -144,7 +137,8 @@ export const App = () => {
 
         const newHistory = [...messages, userMsg];
         setMessages(newHistory);
-        setScrollOffset(Math.max(0, newHistory.length - visibleMessages));
+        setStreamingContent("");
+        setThinking(null);
 
         try {
             const agentHistory = newHistory.map((m) => ({
@@ -152,23 +146,34 @@ export const App = () => {
                 content: m.content,
             }));
 
-            const responseText = await runAgent(input, agentHistory);
+            const stream = runAgentStream(input, agentHistory);
+
+            let accumulatedContent = "";
+
+            for await (const event of stream) {
+                if (event.type === "text") {
+                    accumulatedContent += event.content;
+                    setStreamingContent(accumulatedContent);
+                } else if (event.type === "thinking") {
+                    setThinking(event.content);
+                }
+            }
 
             const aiMsg: Message = {
                 id: Date.now() + 1,
                 session_id: SESSION_ID,
                 role: "assistant",
-                content: responseText,
+                content: accumulatedContent,
                 created_at: new Date().toISOString(),
             };
 
-            const finalMessages = [...newHistory, aiMsg];
-            setMessages(finalMessages);
-            setScrollOffset(Math.max(0, finalMessages.length - visibleMessages));
+            setMessages((prev) => [...prev, aiMsg]);
         } catch (e: any) {
             setError(e.message);
         } finally {
             setIsLoading(false);
+            setStreamingContent("");
+            setThinking(null);
         }
     };
 
@@ -238,8 +243,6 @@ export const App = () => {
         );
     }
 
-    const displayedMessages = messages.slice(scrollOffset, scrollOffset + visibleMessages);
-
     const footerContent = (
         <>
             {error && <Text color="red">Error: {error}</Text>}
@@ -249,14 +252,26 @@ export const App = () => {
     );
 
     return (
-        <Layout footer={footerContent}>
-            {scrollOffset > 0 && <Text dimColor>↑ {scrollOffset} more messages above</Text>}
-            {displayedMessages.map((msg, idx) => (
-                <MessageComponent key={msg.id || idx} role={msg.role} content={msg.content} />
-            ))}
-            {scrollOffset + visibleMessages < messages.length && (
-                <Text dimColor>↓ {messages.length - scrollOffset - visibleMessages} more below</Text>
-            )}
-        </Layout>
+        <>
+            <Static items={messages}>
+                {(msg, idx) => (
+                    <MessageComponent
+                        key={msg.id || idx}
+                        role={msg.role}
+                        content={msg.content}
+                    />
+                )}
+            </Static>
+
+            <Layout footer={footerContent}>
+                {isLoading && (
+                    <MessageComponent
+                        role="assistant"
+                        content={streamingContent}
+                        thinking={thinking || undefined}
+                    />
+                )}
+            </Layout>
+        </>
     );
 };

@@ -14,6 +14,7 @@ export type ProviderName =
     | "deepseek"
     | "qwen"
     | "kimi"
+    | "gemini"
     | "minimax";
 
 export type Config = {
