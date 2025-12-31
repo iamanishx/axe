@@ -5,7 +5,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
 import { loadConfig } from "./config.js";
-import {systemprompt} from "./prompt.js";
+import { systemprompt } from "./prompt.js";
+import { Writable } from "stream";
+
 export type AgentMessage = {
     role: "user" | "assistant";
     content: string;
@@ -16,18 +18,21 @@ export type StreamEvent =
     | { type: "thinking"; content: string };
 
 export async function* runAgentStream(prompt: string, history: AgentMessage[]): AsyncGenerator<StreamEvent> {
+    let fsClient: any = null;
+    let searchClient: any = null;
+
     try {
         const config = loadConfig();
         const model = getModel(config.provider, config.model);
 
-        const fsClient = await createMCPClient({
+        fsClient = await createMCPClient({
             transport: new StdioClientTransport({
                 command: "npx",
                 args: ["-y", "@modelcontextprotocol/server-filesystem", process.cwd()],
             }),
         });
 
-        const searchClient = await createMCPClient({
+        searchClient = await createMCPClient({
             transport: new StdioClientTransport({
                 command: "uvx",
                 args: ["duckduckgo-mcp-server"],
@@ -70,6 +75,20 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[]): 
 
         saveMessage("assistant", fullText);
     } catch (error: any) {
+        if (error.name === 'AbortError' || 
+            error.message?.includes('CancelledError') ||
+            error.message?.includes('KeyboardInterrupt') ||
+            error.code === 'ABORT_ERR') {
+            return;
+        }
+        
         yield { type: "text", content: `Error: ${error.message}` };
+    } finally {
+        try {
+            if (fsClient) await fsClient.close?.();
+        } catch {}
+        try {
+            if (searchClient) await searchClient.close?.();
+        } catch {}
     }
 }
