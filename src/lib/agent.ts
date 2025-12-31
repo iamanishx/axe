@@ -6,7 +6,6 @@ import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
 import { loadConfig } from "./config.js";
 import { systemprompt } from "./prompt.js";
-import { Writable } from "stream";
 
 export type AgentMessage = {
     role: "user" | "assistant";
