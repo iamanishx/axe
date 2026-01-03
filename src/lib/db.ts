@@ -13,7 +13,16 @@ const DB_PATH = join(AXE_DIR, "chat.db");
 const db = new Database(DB_PATH);
 
 const currentDir = process.cwd();
-export const SESSION_ID = createHash("sha256").update(currentDir).digest("hex").slice(0, 16);
+
+let currentSessionId = createHash("sha256").update(currentDir).digest("hex").slice(0, 16);
+
+export function getSessionId(): string {
+    return currentSessionId;
+}
+
+export function setSessionId(id: string) {
+    currentSessionId = id;
+}
 
 db.run(`
   CREATE TABLE IF NOT EXISTS sessions (
@@ -62,20 +71,20 @@ export type Session = {
 };
 
 export function saveMessage(role: "user" | "assistant" | "system", content: string) {
-    ensureSession(SESSION_ID, currentDir);
+    ensureSession(currentSessionId, currentDir);
     db.run("INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)", [
-        SESSION_ID,
+        currentSessionId,
         role,
         content,
     ]);
-    db.run("UPDATE sessions SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?", [SESSION_ID]);
+    db.run("UPDATE sessions SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?", [currentSessionId]);
 }
 
 export function getRecentMessages(limit: number = 50): Message[] {
     const query = db.query(
         "SELECT * FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?"
     );
-    const messages = query.all(SESSION_ID, limit) as Message[];
+    const messages = query.all(currentSessionId, limit) as Message[];
     return messages.reverse();
 }
 
@@ -114,6 +123,13 @@ export function createNewSession(): string {
         .update(currentDir + Date.now().toString())
         .digest("hex")
         .slice(0, 16);
-    db.run("INSERT INTO sessions (id, path) VALUES (?, ?)", [newId, currentDir]);
+    
+    // Count existing sessions in this directory to generate a name
+    const countQuery = db.query("SELECT COUNT(*) as count FROM sessions WHERE path = ?");
+    const result = countQuery.get(currentDir) as { count: number };
+    const sessionName = `Session ${result.count + 1}`;
+
+    db.run("INSERT INTO sessions (id, path, name) VALUES (?, ?, ?)", [newId, currentDir, sessionName]);
+    currentSessionId = newId;
     return newId;
 }

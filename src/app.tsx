@@ -1,46 +1,83 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, Static } from "ink";
-import { Layout } from "./ui/layout.js";
-import { MessageComponent } from "./ui/message.js";
-import { InputArea } from "./ui/input-area.js";
+import { Header } from "./ui/header";
+import { MessageComponent } from "./ui/message";
+import { InputArea } from "./ui/input-area";
+import { SessionPicker } from "./ui/session-picker";
 import {
     getRecentMessages,
     getCurrentDirSessions,
     getOtherDirSessions,
     getSessionMessages,
-    SESSION_ID,
+    getSessionId,
+    createNewSession,
+    setSessionId,
     type Message,
     type Session,
-} from "./lib/db.js";
-import { runAgentStream } from "./lib/agent.js";
-import { loadConfig, setProvider, type ProviderName } from "./lib/config.js";
-import { PROVIDER_MODELS } from "./lib/provider.js";
+} from "./lib/db";
+import { runAgentStream } from "./lib/agent";
+import { loadConfig, setProvider, type ProviderName } from "./lib/config";
+import { PROVIDER_MODELS } from "./lib/provider";
+import { triggerRerender } from "./index";
 
-type View = "chat" | "history" | "provider" | "model";
+type View = "session_picker" | "chat" | "history" | "provider" | "model";
 
-export const App = () => {
+type AppProps = {
+    skipInitialLoad?: boolean;
+};
+
+export const App = ({ skipInitialLoad = false }: AppProps) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingContent, setStreamingContent] = useState("");
     const [thinking, setThinking] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [view, setView] = useState<View>("chat");
+    const [view, setView] = useState<View>("session_picker");
     const [currentDirSessions, setCurrentDirSessions] = useState<Session[]>([]);
     const [otherDirSessions, setOtherDirSessions] = useState<Session[]>([]);
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [config, setConfig] = useState(loadConfig());
 
     useEffect(() => {
-        try {
-            const recent = getRecentMessages(1000);
-            setMessages(recent);
-        } catch (e: any) {
-            setError("Failed to load database: " + e.message);
+        if (skipInitialLoad) {
+            setView("chat");
+            return;
         }
-    }, []);
+
+        const sessions = getCurrentDirSessions();
+        setCurrentDirSessions(sessions);
+
+        if (sessions.length === 0) {
+            createNewSession();
+            setView("chat");
+        } else {
+            setView("session_picker");
+        }
+    }, [skipInitialLoad]);
 
     const providers = Object.keys(PROVIDER_MODELS) as ProviderName[];
     const currentModels = PROVIDER_MODELS[config.provider] || [];
+
+    const handleSessionSelect = (session: Session | null) => {
+        if (session === null) {
+            createNewSession();
+            setMessages([]);
+        } else {
+            setSessionId(session.id);
+            const msgs = getSessionMessages(session.id, 100);
+            setMessages(msgs);
+        }
+        setView("chat");
+    };
+
+    const handleSessionNavigate = (direction: "up" | "down") => {
+        const totalItems = currentDirSessions.length + 1;
+        if (direction === "up") {
+            setSelectedIdx((p) => Math.max(0, p - 1));
+        } else {
+            setSelectedIdx((p) => Math.min(totalItems - 1, p + 1));
+        }
+    };
 
     useInput((input, key) => {
         if (view === "history") {
@@ -92,11 +129,9 @@ export const App = () => {
             }
             return;
         }
+    }, { isActive: view !== "chat" && view !== "session_picker" });
 
-
-    });
-
-    const handleInput = async (input: string) => {
+    const handleInput = useCallback(async (input: string) => {
         const cmd = input.toLowerCase().trim();
 
         if (cmd === "/history") {
@@ -119,159 +154,196 @@ export const App = () => {
             return;
         }
 
-        if (cmd === "/clear") {
-            setMessages([]);
+        if (cmd === "/clear" || cmd === "/new") {
+            if (cmd === "/new") {
+                createNewSession();
+            }
+            triggerRerender();
             return;
         }
 
         setIsLoading(true);
         setError(null);
 
+        const currentSessionId = getSessionId();
+
         const userMsg: Message = {
             id: Date.now(),
-            session_id: SESSION_ID,
+            session_id: currentSessionId,
             role: "user",
             content: input,
             created_at: new Date().toISOString(),
         };
 
-        const newHistory = [...messages, userMsg];
-        setMessages(newHistory);
-        setStreamingContent("");
-        setThinking(null);
+        setMessages((prev) => {
+            const newHistory = [...prev, userMsg];
 
-        try {
-            const agentHistory = newHistory.map((m) => ({
-                role: m.role as "user" | "assistant",
-                content: m.content,
-            }));
+            (async () => {
+                try {
+                    const agentHistory = newHistory.slice(-50).map((m) => ({
+                        role: m.role as "user" | "assistant",
+                        content: m.content,
+                    }));
 
-            const stream = runAgentStream(input, agentHistory);
+                    const fileRefs = input.match(/@([a-zA-Z0-9_./-]+)/g);
+                    let finalInput = input;
 
-            let accumulatedContent = "";
+                    if (fileRefs && fileRefs.length > 0) {
+                        const files = fileRefs.map(ref => ref.substring(1)).join(", ");
+                        finalInput = `${input}\n\n[System Note: The user referenced the following files: ${files}. Please read them if necessary to answer the query.]`;
+                    }
 
-            for await (const event of stream) {
-                if (event.type === "text") {
-                    accumulatedContent += event.content;
-                    setStreamingContent(accumulatedContent);
-                } else if (event.type === "thinking") {
-                    setThinking(event.content);
+                    const stream = runAgentStream(finalInput, agentHistory);
+
+                    let accumulatedContent = "";
+
+                    for await (const event of stream) {
+                        if (event.type === "text") {
+                            accumulatedContent += event.content;
+                            setStreamingContent(accumulatedContent);
+                        } else if (event.type === "thinking") {
+                            setThinking(event.content);
+                        }
+                    }
+
+                    const aiMsg: Message = {
+                        id: Date.now() + 1,
+                        session_id: currentSessionId,
+                        role: "assistant",
+                        content: accumulatedContent,
+                        created_at: new Date().toISOString(),
+                    };
+
+                    setMessages((p) => [...p, aiMsg]);
+                } catch (e: any) {
+                    setError(e.message);
+                } finally {
+                    setIsLoading(false);
+                    setStreamingContent("");
+                    setThinking(null);
                 }
-            }
+            })();
 
-            const aiMsg: Message = {
-                id: Date.now() + 1,
-                session_id: SESSION_ID,
-                role: "assistant",
-                content: accumulatedContent,
-                created_at: new Date().toISOString(),
-            };
+            return newHistory;
+        });
+    }, [providers, config.provider, currentModels, config.model]);
 
-            setMessages((prev) => [...prev, aiMsg]);
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setIsLoading(false);
-            setStreamingContent("");
-            setThinking(null);
-        }
-    };
+    if (view === "session_picker") {
+        return (
+            <SessionPicker
+                currentDirSessions={currentDirSessions}
+                selectedIndex={selectedIdx}
+                onSelect={handleSessionSelect}
+                onNavigate={handleSessionNavigate}
+            />
+        );
+    }
 
     if (view === "provider") {
         return (
-            <Layout footer={<Text dimColor>↑↓ Navigate | Enter Select | q Back</Text>}>
-                <Box flexDirection="column">
-                    <Text bold color="cyan">Select Provider</Text>
-                    <Text dimColor>─────────────────────────────</Text>
+            <Box flexDirection="column" paddingX={2} paddingY={1}>
+                <Text color="cyan" bold>⚙️  Select Provider</Text>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Box flexDirection="column" marginY={1}>
                     {providers.map((p, i) => (
-                        <Text key={p} color={i === selectedIdx ? "green" : "white"}>
-                            {i === selectedIdx ? "→ " : "  "}{p} {p === config.provider ? "(current)" : ""}
+                        <Text key={p} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
+                            {i === selectedIdx ? "▸ " : "  "}{p} {p === config.provider ? <Text dimColor>(current)</Text> : ""}
                         </Text>
                     ))}
                 </Box>
-            </Layout>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
+            </Box>
         );
     }
 
     if (view === "model") {
         return (
-            <Layout footer={<Text dimColor>↑↓ Navigate | Enter Select | q Back</Text>}>
-                <Box flexDirection="column">
-                    <Text bold color="cyan">Select Model ({config.provider})</Text>
-                    <Text dimColor>─────────────────────────────</Text>
+            <Box flexDirection="column" paddingX={2} paddingY={1}>
+                <Text color="cyan" bold>🤖 Select Model <Text dimColor>({config.provider})</Text></Text>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Box flexDirection="column" marginY={1}>
                     {currentModels.map((m, i) => (
-                        <Text key={m} color={i === selectedIdx ? "green" : "white"}>
-                            {i === selectedIdx ? "→ " : "  "}{m} {m === config.model ? "(current)" : ""}
+                        <Text key={m} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
+                            {i === selectedIdx ? "▸ " : "  "}{m} {m === config.model ? <Text dimColor>(current)</Text> : ""}
                         </Text>
                     ))}
                 </Box>
-            </Layout>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
+            </Box>
         );
     }
 
     if (view === "history") {
         const allSessions = [...currentDirSessions, ...otherDirSessions];
         return (
-            <Layout footer={<Text dimColor>↑↓ Navigate | Enter Load | q Back</Text>}>
-                <Box flexDirection="column">
+            <Box flexDirection="column" paddingX={2} paddingY={1}>
+                <Text color="cyan" bold>📚 Session History</Text>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+
+                <Box flexDirection="column" marginY={1}>
                     <Text bold color="yellow">📂 Current Directory</Text>
                     {currentDirSessions.length === 0 ? (
                         <Text dimColor>  No sessions</Text>
                     ) : (
                         currentDirSessions.map((s, i) => (
-                            <Text key={s.id} color={i === selectedIdx ? "green" : "white"}>
-                                {i === selectedIdx ? "→ " : "  "}Session ({s.message_count} msgs)
+                            <Text key={s.id} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
+                                {i === selectedIdx ? "▸ " : "  "}💬 {s.name || "Session"} <Text dimColor>({s.message_count} msgs)</Text>
                             </Text>
                         ))
                     )}
-                    <Text> </Text>
-                    <Text bold color="blue">📁 Other Directories</Text>
-                    {otherDirSessions.length === 0 ? (
-                        <Text dimColor>  No sessions</Text>
-                    ) : (
-                        otherDirSessions.map((s, i) => {
+                </Box>
+
+                {otherDirSessions.length > 0 && (
+                    <Box flexDirection="column" marginY={1}>
+                        <Text bold color="blue">📁 Other Directories</Text>
+                        {otherDirSessions.map((s, i) => {
                             const idx = currentDirSessions.length + i;
                             return (
-                                <Text key={s.id} color={idx === selectedIdx ? "green" : "white"}>
-                                    {idx === selectedIdx ? "→ " : "  "}{s.path} ({s.message_count} msgs)
+                                <Text key={s.id} color={idx === selectedIdx ? "green" : "white"} bold={idx === selectedIdx}>
+                                    {idx === selectedIdx ? "▸ " : "  "}📍 {s.path} <Text dimColor>({s.message_count} msgs)</Text>
                                 </Text>
                             );
-                        })
-                    )}
-                </Box>
-            </Layout>
+                        })}
+                    </Box>
+                )}
+
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Load  <Text color="gray">q</Text> Back</Text>
+            </Box>
         );
     }
 
-    const footerContent = (
-        <>
-            {error && <Text color="red">Error: {error}</Text>}
-            <InputArea onSubmit={handleInput} isLoading={isLoading} />
-            <Text dimColor>{config.provider}/{config.model} | /provider /model /history /clear</Text>
-        </>
-    );
-
     return (
-        <>
+        <Box flexDirection="column">
+            <Header provider={config.provider} model={config.model} />
+
             <Static items={messages}>
-                {(msg, idx) => (
-                    <MessageComponent
-                        key={msg.id || idx}
-                        role={msg.role}
-                        content={msg.content}
-                    />
+                {(msg) => (
+                    <Box key={msg.id} paddingX={1}>
+                        <MessageComponent
+                            role={msg.role}
+                            content={msg.content}
+                        />
+                    </Box>
                 )}
             </Static>
 
-            <Layout footer={footerContent}>
-                {isLoading && (
+            {isLoading && (
+                <Box paddingX={1}>
                     <MessageComponent
                         role="assistant"
                         content={streamingContent}
                         thinking={thinking || undefined}
                     />
-                )}
-            </Layout>
-        </>
+                </Box>
+            )}
+
+            <Box flexDirection="column" paddingX={1}>
+                {error && <Text color="red">❌ Error: {error}</Text>}
+                <InputArea onSubmit={handleInput} isLoading={isLoading} />
+            </Box>
+        </Box>
     );
 };

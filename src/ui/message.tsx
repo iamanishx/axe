@@ -12,18 +12,26 @@ export const MessageComponent: React.FC<MessageProps> = React.memo(({ role, cont
 
     return (
         <Box flexDirection="column" marginBottom={1}>
-            <Text color={isUser ? "green" : "cyan"} bold>
-                {isUser ? "❯ You" : "| AI"}:
-            </Text>
-            <Box paddingLeft={2} flexDirection="column">
+            {/* Message Header */}
+            <Box>
+                <Text color={isUser ? "green" : "cyan"} bold>
+                    {isUser ? "> You" : "| AXE"}
+                </Text>
+            </Box>
+
+            {/* Message Content */}
+            <Box paddingLeft={3} flexDirection="column">
+                {/* Thinking indicator */}
                 {thinking && (
-                    <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="dim">
-                        <Text color="yellow">
-                            ⚙ {thinking}
+                    <Box marginBottom={1}>
+                        <Text color="yellow" dimColor>
+                            💭 {thinking}
                         </Text>
                     </Box>
                 )}
-                <Text>{content}</Text>
+
+                {/* Main content */}
+                <Text wrap="wrap">{content}</Text>
             </Box>
         </Box>
     );
