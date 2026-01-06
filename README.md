@@ -47,7 +47,4 @@ API keys stored in `~/.axe/config.json`:
   }
 }
 ```
-
-## License
-
-MIT
+the TUI kinda sucks feel free to make PR 
