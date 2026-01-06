@@ -1,11 +1,11 @@
 {
-  "name": "axe-cli",
-  "version": "0.1.0",
+  "name": "@axeai/axe",
+  "version": "0.0.1-beta",
   "description": "AI-powered TUI code editor with MCP filesystem access",
   "module": "src/index.tsx",
   "type": "module",
   "bin": {
-    "axe": "./bin/axe.js"
+    "axe": "bin/axe.js"
   },
   "files": [
     "src",
