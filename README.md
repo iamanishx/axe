@@ -7,12 +7,12 @@ AI-powered TUI code assistant. Talk to your codebase from the terminal.
 ## Install
 
 ```bash
-bun install -g axe-cli
+bun install -g @axeai/axe
 ```
 
 Or run directly:
 ```bash
-bunx axe-cli
+bunx @axeai/axe
 ```
 
 ## Features
