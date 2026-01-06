@@ -20,7 +20,7 @@ import { loadConfig, setProvider, type ProviderName } from "./lib/config";
 import { PROVIDER_MODELS } from "./lib/provider";
 import { triggerRerender } from "./index";
 
-type View = "session_picker" | "chat" | "history" | "provider" | "model";
+type View = "session_picker" | "chat" | "history" | "provider" | "model" | "agent";
 
 type AppProps = {
     skipInitialLoad?: boolean;
@@ -37,6 +37,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
     const [otherDirSessions, setOtherDirSessions] = useState<Session[]>([]);
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [config, setConfig] = useState(loadConfig());
+    const [agentType, setAgentType] = useState<"tool-loop" | "ralph-loop">("tool-loop");
 
     useEffect(() => {
         if (skipInitialLoad) {
@@ -131,6 +132,32 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
         }
     }, { isActive: view !== "chat" && view !== "session_picker" });
 
+    useInput((input, key) => {
+        if (view === "agent") {
+            if (key.escape || input === "q") {
+                setView("chat");
+                return;
+            }
+            if (key.upArrow) setSelectedIdx((p) => Math.max(0, p - 1));
+            if (key.downArrow) setSelectedIdx((p) => Math.min(agentTypes.length - 1, p + 1));
+            if (key.return) {
+                const newAgentType = agentTypes[selectedIdx] as "tool-loop" | "ralph-loop";
+                setAgentType(newAgentType);
+                setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    session_id: getSessionId(),
+                    role: "assistant",
+                    content: `Switched agent to ${newAgentType === "tool-loop" ? "Tool Loop" : "Ralph Loop"}`,
+                    created_at: new Date().toISOString(),
+                }]);
+                setView("chat");
+            }
+            return;
+        }
+    }, { isActive: view === "agent" });
+
+    const agentTypes = ["tool-loop", "ralph-loop"];
+
     const handleInput = useCallback(async (input: string) => {
         const cmd = input.toLowerCase().trim();
 
@@ -151,6 +178,12 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
         if (cmd === "/model") {
             setSelectedIdx(currentModels.indexOf(config.model));
             setView("model");
+            return;
+        }
+
+        if (cmd === "/agent") {
+            setSelectedIdx(agentTypes.indexOf(agentType));
+            setView("agent");
             return;
         }
 
@@ -193,7 +226,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
                         finalInput = `${input}\n\n[System Note: The user referenced the following files: ${files}. Please read them if necessary to answer the query.]`;
                     }
 
-                    const stream = runAgentStream(finalInput, agentHistory);
+                    const stream = runAgentStream(finalInput, agentHistory, agentType);
 
                     let accumulatedContent = "";
 
@@ -226,7 +259,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
 
             return newHistory;
         });
-    }, [providers, config.provider, currentModels, config.model]);
+    }, [providers, config.provider, currentModels, config.model, agentType]);
 
     if (view === "session_picker") {
         return (
@@ -266,6 +299,24 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
                     {currentModels.map((m, i) => (
                         <Text key={m} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
                             {i === selectedIdx ? "▸ " : "  "}{m} {m === config.model ? <Text dimColor>(current)</Text> : ""}
+                        </Text>
+                    ))}
+                </Box>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
+            </Box>
+        );
+    }
+
+    if (view === "agent") {
+        return (
+            <Box flexDirection="column" paddingX={2} paddingY={1}>
+                <Text color="cyan" bold>🕵️ Select Agent</Text>
+                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+                <Box flexDirection="column" marginY={1}>
+                    {agentTypes.map((t, i) => (
+                        <Text key={t} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
+                            {i === selectedIdx ? "▸ " : "  "}{t === "tool-loop" ? "Tool Loop (Standard)" : "Ralph Loop (Continuous)"} {t === agentType ? <Text dimColor>(current)</Text> : ""}
                         </Text>
                     ))}
                 </Box>

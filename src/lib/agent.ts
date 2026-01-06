@@ -6,6 +6,7 @@ import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
 import { loadConfig } from "./config.js";
 import { systemprompt } from "./prompt.js";
+import { RalphLoopAgent, iterationCountIs } from 'ralph-loop-agent';
 
 export type AgentMessage = {
     role: "user" | "assistant";
@@ -16,7 +17,7 @@ export type StreamEvent =
     | { type: "text"; content: string }
     | { type: "thinking"; content: string };
 
-export async function* runAgentStream(prompt: string, history: AgentMessage[]): AsyncGenerator<StreamEvent> {
+export async function* runAgentStream(prompt: string, history: AgentMessage[], agentType: "tool-loop" | "ralph-loop" = "tool-loop"): AsyncGenerator<StreamEvent> {
     let fsClient: any = null;
     let searchClient: any = null;
 
@@ -41,23 +42,37 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[]): 
         const fsTools = await fsClient.tools();
         const searchTools = await searchClient.tools();
 
-        const myAgent = new ToolLoopAgent({
-            model: model,
-            instructions: systemprompt,
-            tools: {
-                ...fsTools,
-                ...searchTools,
-                shell: shellTool,
-            },
-            stopWhen: stepCountIs(100),
-        });
+        const tools = {
+            ...fsTools,
+            ...searchTools,
+            shell: shellTool,
+        };
 
         const messages: Array<{ role: "user" | "assistant"; content: string }> = [
             ...history.map((h) => ({ role: h.role, content: h.content })),
             { role: "user" as const, content: prompt },
         ];
 
-        const result = await myAgent.stream({ messages });
+        let result;
+
+        if (agentType === "ralph-loop") {
+            const myAgent = new RalphLoopAgent({
+                model: model,
+                instructions: systemprompt,
+                tools: tools,
+                stopWhen: iterationCountIs(10),
+                verifyCompletion: async () => ({ complete: true }),
+            });
+            result = await myAgent.stream({ messages } as any);
+        } else {
+            const myAgent = new ToolLoopAgent({
+                model: model,
+                instructions: systemprompt,
+                tools: tools,
+                stopWhen: stepCountIs(100),
+            });
+            result = await myAgent.stream({ messages });
+        }
 
         saveMessage("user", prompt);
         let fullText = "";

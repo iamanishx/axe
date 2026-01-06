@@ -112,7 +112,8 @@ export const InputArea: React.FC<InputAreaProps> = React.memo(({ onSubmit, isLoa
                     <Text color="gray">/clear</Text> <Text dimColor>•</Text>{" "}
                     <Text color="gray">/history</Text> <Text dimColor>•</Text>{" "}
                     <Text color="gray">/provider</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/model</Text>
+                    <Text color="gray">/model</Text> <Text dimColor>•</Text>{" "}
+                    <Text color="gray">/agent</Text>
                 </Text>
             </Box>
         </Box>

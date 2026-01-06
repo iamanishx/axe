@@ -19,6 +19,7 @@
         "ink-spinner": "^5.0.0",
         "ink-text-input": "^6.0.0",
         "install": "^0.13.0",
+        "ralph-loop-agent": "^0.0.3",
         "react": "^19.2.3",
         "react-dom": "^19.2.3",
         "zod": "^4.2.1",
@@ -728,6 +729,8 @@
     "qs": ["qs@6.14.0", "", { "dependencies": { "side-channel": "^1.1.0" } }, "sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w=="],
 
     "quick-lru": ["quick-lru@5.1.1", "", {}, "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA=="],
+
+    "ralph-loop-agent": ["ralph-loop-agent@0.0.3", "", { "dependencies": { "@ai-sdk/provider-utils": "^4.0.0", "ai": "^6.0.0" }, "peerDependencies": { "zod": "^4.0.0" } }, "sha512-IpXoeqsKdzi1pAYS1XFEvOCDzeG8sXLR4wIRoNtx0/CRY+4sKJUeWucpSfMGoEIyOuvuF7jChdWQ5tiCfF9Y7w=="],
 
     "range-parser": ["range-parser@1.2.1", "", {}, "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="],
 

@@ -22,6 +22,7 @@ bunx axe-cli
 - **Shell commands** - Run terminal commands through AI
 - **Per-directory sessions** - Chat history tied to your project
 - **Lightweight** - Built with Bun + Ink
+- **Ralph Loop** - Continuous autonomy for complex tasks (experimental)
 
 ## Commands
 
@@ -29,6 +30,7 @@ bunx axe-cli
 |---------|--------|
 | `/provider` | Switch AI provider |
 | `/model` | Switch model |
+| `/agent` | Switch agent type (Standard vs Ralph Loop) |
 | `/history` | View chat sessions |
 | `/clear` | Clear chat |
 
