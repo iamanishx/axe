@@ -56,14 +56,21 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[], a
         let result;
 
         if (agentType === "ralph-loop") {
+            let agentInstructions = systemprompt;
+            if (messages.length > 1) {
+                const historyContext = messages.slice(0, -1)
+                    .map(m => `[${m.role.toUpperCase()}]: ${m.content}`)
+                    .join('\n\n');
+                agentInstructions = `${systemprompt}\n\n## Conversation History:\nThe following is the previous conversation with the user. Use this context to understand what has been discussed and done so far.\n\n${historyContext}`;
+            }
+
             const myAgent = new RalphLoopAgent({
                 model: model,
-                instructions: systemprompt,
+                instructions: agentInstructions,
                 tools: tools,
-                stopWhen: iterationCountIs(10),
-                verifyCompletion: async () => ({ complete: true }),
+                stopWhen: iterationCountIs(100),
             });
-            result = await myAgent.stream({ messages } as any);
+            result = await myAgent.stream({ prompt });
         } else {
             const myAgent = new ToolLoopAgent({
                 model: model,
@@ -89,20 +96,20 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[], a
 
         saveMessage("assistant", fullText);
     } catch (error: any) {
-        if (error.name === 'AbortError' || 
+        if (error.name === 'AbortError' ||
             error.message?.includes('CancelledError') ||
             error.message?.includes('KeyboardInterrupt') ||
             error.code === 'ABORT_ERR') {
             return;
         }
-        
+
         yield { type: "text", content: `Error: ${error.message}` };
     } finally {
         try {
             if (fsClient) await fsClient.close?.();
-        } catch {}
+        } catch { }
         try {
             if (searchClient) await searchClient.close?.();
-        } catch {}
+        } catch { }
     }
 }
