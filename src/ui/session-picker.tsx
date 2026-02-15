@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text, useInput } from "ink";
+import { useKeyboard } from "@opentui/react";
 import type { Session } from "../lib/db";
 
 type SessionPickerProps = {
@@ -9,22 +9,22 @@ type SessionPickerProps = {
     onNavigate: (direction: "up" | "down") => void;
 };
 
-export const SessionPicker: React.FC<SessionPickerProps> = ({
+export const SessionPicker = ({
     currentDirSessions,
     selectedIndex,
     onSelect,
     onNavigate,
-}) => {
+}: SessionPickerProps) => {
     const totalItems = currentDirSessions.length + 1;
 
-    useInput((input, key) => {
-        if (key.upArrow) {
+    useKeyboard((key) => {
+        if (key.name === "up") {
             onNavigate("up");
         }
-        if (key.downArrow) {
+        if (key.name === "down") {
             onNavigate("down");
         }
-        if (key.return) {
+        if (key.name === "enter" || key.name === "return") {
             if (selectedIndex === 0) {
                 onSelect(null);
             } else {
@@ -49,68 +49,67 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
     };
 
     return (
-        <Box flexDirection="column" paddingX={2} paddingY={1}>
+        <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1} paddingTop={1}>
             {/* Header */}
-            <Box marginBottom={1}>
-                <Text color="cyan" bold>
-                    AXE
-                </Text>
-                <Text dimColor> - AI Coding Assistant</Text>
-            </Box>
+            <box marginBottom={1}>
+                <text fg="cyan"><strong>AXE</strong></text>
+                <text fg="#666666"> - AI Coding Assistant</text>
+            </box>
 
             {/* Divider */}
-            <Box marginBottom={1}>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-            </Box>
+            <box marginBottom={1}>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+            </box>
 
             {/* Session Picker Title */}
-            <Box marginBottom={1}>
-                <Text color="yellow" bold>📂 Select a Session</Text>
-            </Box>
+            <box marginBottom={1}>
+                <text fg="yellow"><strong>📂 Select a Session</strong></text>
+            </box>
 
             {/* New Session Option */}
-            <Box>
-                <Text color={selectedIndex === 0 ? "green" : "white"} bold={selectedIndex === 0}>
-                    {selectedIndex === 0 ? "▸ " : "  "}
-                    <Text color={selectedIndex === 0 ? "green" : "cyan"}>✨ Start New Session</Text>
-                </Text>
-            </Box>
+            <box>
+                <text>
+                    <span fg={selectedIndex === 0 ? "green" : "white"}><strong>{selectedIndex === 0 ? "▸ " : "  "}</strong></span>
+                    <span fg={selectedIndex === 0 ? "green" : "cyan"}>✨ Start New Session</span>
+                </text>
+            </box>
 
             {/* Existing Sessions */}
             {currentDirSessions.length > 0 && (
-                <Box flexDirection="column" marginTop={1}>
-                    <Text dimColor bold>  Recent Sessions:</Text>
+                <box flexDirection="column" marginTop={1}>
+                    <text fg="#666666"><strong>  Recent Sessions:</strong></text>
                     {currentDirSessions.map((session, idx) => {
                         const itemIdx = idx + 1;
                         const isSelected = selectedIndex === itemIdx;
                         return (
-                            <Box key={session.id} paddingLeft={0}>
-                                <Text color={isSelected ? "green" : "white"} bold={isSelected}>
-                                    {isSelected ? "▸ " : "  "}
-                                    <Text color={isSelected ? "green" : "gray"}>💬 </Text>
-                                    <Text color={isSelected ? "green" : "white"}>
+                            <box key={session.id} paddingLeft={0}>
+                                <text>
+                                    <span fg={isSelected ? "green" : "white"}><strong>{isSelected ? "▸ " : "  "}</strong></span>
+                                    <span fg={isSelected ? "green" : "gray"}>💬 </span>
+                                    <span fg={isSelected ? "green" : "white"}>
                                         {session.name || `Session ${session.id.slice(0, 8)}`}
-                                    </Text>
-                                    <Text dimColor>
+                                    </span>
+                                    <span fg="#666666">
                                         {" "}({session.message_count} msgs • {formatDate(session.last_message_at)})
-                                    </Text>
-                                </Text>
-                            </Box>
+                                    </span>
+                                </text>
+                            </box>
                         );
                     })}
-                </Box>
+                </box>
             )}
 
             {/* Footer */}
-            <Box marginTop={2}>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-            </Box>
-            <Box marginTop={1}>
-                <Text dimColor>
-                    <Text color="gray">↑↓</Text> Navigate
-                    <Text color="gray"> Enter</Text> Select
-                </Text>
-            </Box>
-        </Box>
+            <box marginTop={2}>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+            </box>
+            <box marginTop={1}>
+                <text fg="#666666">
+                    <span fg="gray">↑↓</span> Navigate
+                    <span fg="gray"> Enter</span> Select
+                </text>
+            </box>
+        </box>
     );
 };
+
