@@ -20,7 +20,6 @@ export const InputArea = React.memo(({ onSubmit, isLoading }: InputAreaProps) =>
         setAllFiles(getAllFiles());
     }, []);
 
-    // Spinner animation
     useEffect(() => {
         if (!isLoading) return;
         const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -72,7 +71,6 @@ export const InputArea = React.memo(({ onSubmit, isLoading }: InputAreaProps) =>
                 setShowSuggestions(false);
             }
         } else {
-            // Handle normal submission
             if ((key.name === "enter" || key.name === "return") && !isLoading) {
                 if (query.trim()) {
                     onSubmit(query);
@@ -106,9 +104,10 @@ export const InputArea = React.memo(({ onSubmit, isLoading }: InputAreaProps) =>
                         </text>
                     </box>
                 ) : (
-                    <box>
+                    <box flexDirection="row">
                         <text fg="green"><strong>❯ </strong></text>
                         <input
+                            flexGrow={1}
                             value={query}
                             onChange={handleChange}
                             placeholder="Ask anything... (@ to reference files)"

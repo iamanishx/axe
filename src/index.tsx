@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const renderer = await createCliRenderer({
-    exitOnCtrlC: false,
+    exitOnCtrlC: true,
 });
 
 const root = createRoot(renderer);

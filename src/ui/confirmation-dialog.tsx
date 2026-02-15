@@ -46,7 +46,7 @@ export const ConfirmationDialog = ({ toolName, args, onConfirm, onDeny }: Confir
             <text fg="yellow"><strong>⚠️  Tool Execution Confirmation</strong></text>
             <box marginY={1}>
                 <text>
-                    The agent wants to execute <text fg="cyan"><strong>{toolName}</strong></text> with args:
+                    The agent wants to execute <span fg="cyan"><strong>{toolName}</strong></span> with args:
                 </text>
             </box>
             <box marginBottom={1}>
@@ -74,4 +74,3 @@ export const ConfirmationDialog = ({ toolName, args, onConfirm, onDeny }: Confir
         </box>
     );
 };
-

@@ -67,7 +67,6 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
         }
     }, [view]);
 
-    // Refresh history when entering history view
     useEffect(() => {
         if (view === "history") {
             setCurrentDirSessions(getCurrentDirSessions());
@@ -87,7 +86,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
 
     const handleSessionNavigate = (direction: "up" | "down") => {
         setCurrentDirSessions((current) => {
-            const maxIdx = current.length; // +1 for "New Session"
+            const maxIdx = current.length;
             if (direction === "up") {
                 setSelectedIdx((prev) => Math.max(0, prev - 1));
             } else {
@@ -323,7 +322,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
                             <text key={s.id}>
                                 <span fg={i === selectedIdx ? "green" : "white"}><strong>{i === selectedIdx ? "▸ " : "  "}</strong></span>
                                 <span fg={i === selectedIdx ? "green" : "white"}>💬 {s.name || "Session"}</span>
-                                <span fg="#666666"> ({s.message_count} msgs)</span>
+                                <span fg="#666666"> ({String(s.message_count)} msgs)</span>
                             </text>
                         ))
                     )}
@@ -338,7 +337,7 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
                                 <text key={s.id}>
                                     <span fg={idx === selectedIdx ? "green" : "white"}><strong>{idx === selectedIdx ? "▸ " : "  "}</strong></span>
                                     <span fg={idx === selectedIdx ? "green" : "white"}>📍 {s.path}</span>
-                                    <span fg="#666666"> ({s.message_count} msgs)</span>
+                                    <span fg="#666666"> ({String(s.message_count)} msgs)</span>
                                 </text>
                             );
                         })}

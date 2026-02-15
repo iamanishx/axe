@@ -90,7 +90,7 @@ export const SessionPicker = ({
                                         {session.name || `Session ${session.id.slice(0, 8)}`}
                                     </span>
                                     <span fg="#666666">
-                                        {" "}({session.message_count} msgs • {formatDate(session.last_message_at)})
+                                        {" "}({String(session.message_count)} msgs • {formatDate(session.last_message_at)})
                                     </span>
                                 </text>
                             </box>

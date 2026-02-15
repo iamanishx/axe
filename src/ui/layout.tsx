@@ -15,7 +15,7 @@ export const Layout = ({ header, footer, children }: LayoutProps) => {
             {header ? <box flexShrink={0}>{header}</box> : null}
 
             <box flexDirection="column" flexGrow={1} minHeight={1} overflow="hidden">
-                <scrollbox height="100%">
+                <scrollbox height="100%" stickyScroll stickyStart="bottom">
                     <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingBottom={1}>
                         {children}
                     </box>
