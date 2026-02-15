@@ -1,6 +1,7 @@
 import { saveMessage } from "./db.js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
 import { loadConfig, getAutoAllowedTools } from "./config.js";
@@ -62,6 +63,12 @@ export async function* runAgentStream(
     try {
         const config = loadConfig();
         const model = getModel(config.provider, config.model);
+        const exaUrl = new URL("https://mcp.exa.ai/mcp");
+        const exaApiKey = config.keys.exa || process.env.EXA_API_KEY;
+
+        if (exaApiKey) {
+            exaUrl.searchParams.set("exaApiKey", exaApiKey);
+        }
 
         fsClient = await createMCPClient({
             transport: new StdioClientTransport({
@@ -72,11 +79,7 @@ export async function* runAgentStream(
         });
 
         searchClient = await createMCPClient({
-            transport: new StdioClientTransport({
-                command: "npx",
-                args: ["-y", "exa-mcp-server"],
-                stderr: "ignore",
-            }),
+            transport: new StreamableHTTPClientTransport(exaUrl),
         });
 
         const fsTools = await fsClient.tools();
