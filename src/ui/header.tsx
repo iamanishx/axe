@@ -1,25 +1,27 @@
 import React from "react";
-import { Box, Text } from "ink";
 
 type HeaderProps = {
     provider: string;
     model: string;
 };
 
-export const Header: React.FC<HeaderProps> = ({ provider, model }) => {
+export const Header = ({ provider, model }: HeaderProps) => {
     const cwd = process.cwd();
     const dirName = cwd.split("/").pop() || cwd;
 
     return (
-        <Box flexDirection="column" paddingX={1} marginBottom={1}>
-            <Box>
-                <Text color="cyan" bold>AXE</Text>
-                <Text dimColor> • </Text>
-                <Text color="yellow">{dirName}</Text>
-                <Text dimColor> • </Text>
-                <Text color="magenta">{provider}/{model}</Text>
-            </Box>
-            <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-        </Box>
+        <box flexDirection="column" paddingLeft={1} paddingRight={1} marginBottom={1}>
+            <box>
+                <text>
+                    <span fg="cyan"><strong>AXE</strong></span>
+                    <span fg="#666666"> • </span>
+                    <span fg="yellow">{dirName}</span>
+                    <span fg="#666666"> • </span>
+                    <span fg="magenta">{provider}/{model}</span>
+                </text>
+            </box>
+            <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+        </box>
     );
 };
+

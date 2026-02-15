@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Text, useInput, Static } from "ink";
+import { useKeyboard } from "@opentui/react";
 import { Header } from "./ui/header";
 import { MessageComponent } from "./ui/message";
 import { InputArea } from "./ui/input-area";
 import { SessionPicker } from "./ui/session-picker";
+import { ConfirmationDialog } from "./ui/confirmation-dialog";
+import { Layout } from "./ui/layout";
 import {
     getRecentMessages,
     getCurrentDirSessions,
@@ -18,7 +20,6 @@ import {
 import { runAgentStream } from "./lib/agent";
 import { loadConfig, setProvider, type ProviderName } from "./lib/config";
 import { PROVIDER_MODELS } from "./lib/provider";
-import { triggerRerender } from "./index";
 
 type View = "session_picker" | "chat" | "history" | "provider" | "model" | "agent";
 
@@ -37,7 +38,11 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
     const [otherDirSessions, setOtherDirSessions] = useState<Session[]>([]);
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [config, setConfig] = useState(loadConfig());
-    const [agentType, setAgentType] = useState<"tool-loop" | "ralph-loop">("tool-loop");
+    const [confirmationRequest, setConfirmationRequest] = useState<{
+        toolName: string;
+        args: any;
+        resolve: (allowed: boolean) => void;
+    } | null>(null);
 
     useEffect(() => {
         if (skipInitialLoad) {
@@ -56,56 +61,70 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
         }
     }, [skipInitialLoad]);
 
-    const providers = Object.keys(PROVIDER_MODELS) as ProviderName[];
-    const currentModels = PROVIDER_MODELS[config.provider] || [];
+    useEffect(() => {
+        if (view === "chat") {
+            setMessages(getSessionMessages(getSessionId()));
+        }
+    }, [view]);
+
+    useEffect(() => {
+        if (view === "history") {
+            setCurrentDirSessions(getCurrentDirSessions());
+            setOtherDirSessions(getOtherDirSessions());
+            setSelectedIdx(0);
+        }
+    }, [view]);
 
     const handleSessionSelect = (session: Session | null) => {
-        if (session === null) {
-            createNewSession();
-            setMessages([]);
-        } else {
+        if (session) {
             setSessionId(session.id);
-            const msgs = getSessionMessages(session.id, 100);
-            setMessages(msgs);
+        } else {
+            createNewSession();
         }
         setView("chat");
     };
 
     const handleSessionNavigate = (direction: "up" | "down") => {
-        const totalItems = currentDirSessions.length + 1;
-        if (direction === "up") {
-            setSelectedIdx((p) => Math.max(0, p - 1));
-        } else {
-            setSelectedIdx((p) => Math.min(totalItems - 1, p + 1));
-        }
+        setCurrentDirSessions((current) => {
+            const maxIdx = current.length;
+            if (direction === "up") {
+                setSelectedIdx((prev) => Math.max(0, prev - 1));
+            } else {
+                setSelectedIdx((prev) => Math.min(maxIdx, prev + 1));
+            }
+            return current;
+        });
     };
 
-    useInput((input, key) => {
+    const providers = Object.keys(PROVIDER_MODELS) as ProviderName[];
+    const currentModels = PROVIDER_MODELS[config.provider] || [];
+
+    useKeyboard((key) => {
         if (view === "history") {
-            if (key.escape || input === "q") {
+            if (key.name === "escape" || key.sequence === "q") {
                 setView("chat");
                 return;
             }
             const allSessions = [...currentDirSessions, ...otherDirSessions];
-            if (key.upArrow) setSelectedIdx((p) => Math.max(0, p - 1));
-            if (key.downArrow) setSelectedIdx((p) => Math.min(allSessions.length - 1, p + 1));
-            if (key.return && allSessions[selectedIdx]) {
-                const session = allSessions[selectedIdx];
-                const msgs = getSessionMessages(session.id, 1000);
-                setMessages(msgs);
-                setView("chat");
+            if (key.name === "up") setSelectedIdx((p) => Math.max(0, p - 1));
+            if (key.name === "down") setSelectedIdx((p) => Math.min(allSessions.length - 1, p + 1));
+            if (key.name === "return" || key.name === "enter") {
+                if (allSessions[selectedIdx]) {
+                    setSessionId(allSessions[selectedIdx].id);
+                    setView("chat");
+                }
             }
             return;
         }
 
         if (view === "provider") {
-            if (key.escape || input === "q") {
+            if (key.name === "escape" || key.sequence === "q") {
                 setView("chat");
                 return;
             }
-            if (key.upArrow) setSelectedIdx((p) => Math.max(0, p - 1));
-            if (key.downArrow) setSelectedIdx((p) => Math.min(providers.length - 1, p + 1));
-            if (key.return) {
+            if (key.name === "up") setSelectedIdx((p) => Math.max(0, p - 1));
+            if (key.name === "down") setSelectedIdx((p) => Math.min(providers.length - 1, p + 1));
+            if (key.name === "return" || key.name === "enter") {
                 const newProvider = providers[selectedIdx];
                 const defaultModel = PROVIDER_MODELS[newProvider][0];
                 setProvider(newProvider, defaultModel);
@@ -116,13 +135,13 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
         }
 
         if (view === "model") {
-            if (key.escape || input === "q") {
+            if (key.name === "escape" || key.sequence === "q") {
                 setView("chat");
                 return;
             }
-            if (key.upArrow) setSelectedIdx((p) => Math.max(0, p - 1));
-            if (key.downArrow) setSelectedIdx((p) => Math.min(currentModels.length - 1, p + 1));
-            if (key.return) {
+            if (key.name === "up") setSelectedIdx((p) => Math.max(0, p - 1));
+            if (key.name === "down") setSelectedIdx((p) => Math.min(currentModels.length - 1, p + 1));
+            if (key.name === "return" || key.name === "enter") {
                 const newModel = currentModels[selectedIdx];
                 setProvider(config.provider, newModel);
                 setConfig(loadConfig());
@@ -130,76 +149,38 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
             }
             return;
         }
-    }, { isActive: view !== "chat" && view !== "session_picker" });
-
-    useInput((input, key) => {
-        if (view === "agent") {
-            if (key.escape || input === "q") {
-                setView("chat");
-                return;
-            }
-            if (key.upArrow) setSelectedIdx((p) => Math.max(0, p - 1));
-            if (key.downArrow) setSelectedIdx((p) => Math.min(agentTypes.length - 1, p + 1));
-            if (key.return) {
-                const newAgentType = agentTypes[selectedIdx] as "tool-loop" | "ralph-loop";
-                setAgentType(newAgentType);
-                setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    session_id: getSessionId(),
-                    role: "assistant",
-                    content: `Switched agent to ${newAgentType === "tool-loop" ? "Tool Loop" : "Ralph Loop"}`,
-                    created_at: new Date().toISOString(),
-                }]);
-                setView("chat");
-            }
-            return;
-        }
-    }, { isActive: view === "agent" });
-
-    const agentTypes = ["tool-loop", "ralph-loop"];
+    });
 
     const handleInput = useCallback(async (input: string) => {
-        const cmd = input.toLowerCase().trim();
-
-        if (cmd === "/history") {
-            setCurrentDirSessions(getCurrentDirSessions());
-            setOtherDirSessions(getOtherDirSessions());
-            setSelectedIdx(0);
-            setView("history");
-            return;
-        }
-
-        if (cmd === "/provider") {
-            setSelectedIdx(providers.indexOf(config.provider));
-            setView("provider");
-            return;
-        }
-
-        if (cmd === "/model") {
-            setSelectedIdx(currentModels.indexOf(config.model));
-            setView("model");
-            return;
-        }
-
-        if (cmd === "/agent") {
-            setSelectedIdx(agentTypes.indexOf(agentType));
-            setView("agent");
-            return;
-        }
-
-        if (cmd === "/clear" || cmd === "/new") {
-            if (cmd === "/new") {
+        if (input.startsWith("/")) {
+            const cmd = input.slice(1).trim().toLowerCase();
+            if (cmd === "new") {
                 createNewSession();
+                setMessages([]);
+                return;
             }
-            triggerRerender();
-            return;
+            if (cmd === "clear") {
+                setMessages([]);
+                setStreamingContent("");
+                setThinking(null);
+                setError(null);
+                return;
+            }
+            if (cmd === "history") {
+                setView("history");
+                return;
+            }
+            if (cmd === "provider") {
+                setView("provider");
+                return;
+            }
+            if (cmd === "model") {
+                setView("model");
+                return;
+            }
         }
-
-        setIsLoading(true);
-        setError(null);
 
         const currentSessionId = getSessionId();
-
         const userMsg: Message = {
             id: Date.now(),
             session_id: currentSessionId,
@@ -208,8 +189,12 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
             created_at: new Date().toISOString(),
         };
 
-        setMessages((prev) => {
-            const newHistory = [...prev, userMsg];
+        setMessages((p) => [...p, userMsg]);
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const newHistory = [...messages, userMsg];
 
             (async () => {
                 try {
@@ -226,7 +211,13 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
                         finalInput = `${input}\n\n[System Note: The user referenced the following files: ${files}. Please read them if necessary to answer the query.]`;
                     }
 
-                    const stream = runAgentStream(finalInput, agentHistory, agentType);
+                    const onConfirmation = (toolName: string, args: any) => {
+                        return new Promise<boolean>((resolve) => {
+                            setConfirmationRequest({ toolName, args, resolve });
+                        });
+                    };
+
+                    const stream = runAgentStream(finalInput, agentHistory, onConfirmation);
 
                     let accumulatedContent = "";
 
@@ -258,9 +249,13 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
             })();
 
             return newHistory;
-        });
-    }, [providers, config.provider, currentModels, config.model, agentType]);
+        } catch (_error) {
+            // Errors are handled inside the async IIFE above
+        }
 
+    }, [config.provider, config.model, messages]);
+
+    // Renders
     if (view === "session_picker") {
         return (
             <SessionPicker
@@ -274,127 +269,134 @@ export const App = ({ skipInitialLoad = false }: AppProps) => {
 
     if (view === "provider") {
         return (
-            <Box flexDirection="column" paddingX={2} paddingY={1}>
-                <Text color="cyan" bold>⚙️  Select Provider</Text>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Box flexDirection="column" marginY={1}>
+            <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1} paddingTop={1}>
+                <text fg="cyan"><strong>⚙️  Select Provider</strong></text>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+                <box flexDirection="column" marginY={1}>
                     {providers.map((p, i) => (
-                        <Text key={p} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
-                            {i === selectedIdx ? "▸ " : "  "}{p} {p === config.provider ? <Text dimColor>(current)</Text> : ""}
-                        </Text>
+                        <text key={p}>
+                            <span fg={i === selectedIdx ? "green" : "white"}><strong>{i === selectedIdx ? "▸ " : "  "}</strong></span>
+                            <span fg={i === selectedIdx ? "green" : "white"}>{p}</span>
+                            {p === config.provider ? <span fg="#666666"> (current)</span> : ""}
+                        </text>
                     ))}
-                </Box>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
-            </Box>
+                </box>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+                <text fg="#666666"><span fg="gray">↑↓</span> Navigate  <span fg="gray">Enter</span> Select  <span fg="gray">q</span> Back</text>
+            </box>
         );
     }
 
     if (view === "model") {
         return (
-            <Box flexDirection="column" paddingX={2} paddingY={1}>
-                <Text color="cyan" bold>🤖 Select Model <Text dimColor>({config.provider})</Text></Text>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Box flexDirection="column" marginY={1}>
+            <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1} paddingTop={1}>
+                <text fg="cyan"><strong>🤖 Select Model <span fg="#666666">({config.provider})</span></strong></text>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+                <box flexDirection="column" marginY={1}>
                     {currentModels.map((m, i) => (
-                        <Text key={m} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
-                            {i === selectedIdx ? "▸ " : "  "}{m} {m === config.model ? <Text dimColor>(current)</Text> : ""}
-                        </Text>
+                        <text key={m}>
+                            <span fg={i === selectedIdx ? "green" : "white"}><strong>{i === selectedIdx ? "▸ " : "  "}</strong></span>
+                            <span fg={i === selectedIdx ? "green" : "white"}>{m}</span>
+                            {m === config.model ? <span fg="#666666"> (current)</span> : ""}
+                        </text>
                     ))}
-                </Box>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
-            </Box>
-        );
-    }
-
-    if (view === "agent") {
-        return (
-            <Box flexDirection="column" paddingX={2} paddingY={1}>
-                <Text color="cyan" bold>🕵️ Select Agent</Text>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Box flexDirection="column" marginY={1}>
-                    {agentTypes.map((t, i) => (
-                        <Text key={t} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
-                            {i === selectedIdx ? "▸ " : "  "}{t === "tool-loop" ? "Tool Loop (Standard)" : "Ralph Loop (Continuous)"} {t === agentType ? <Text dimColor>(current)</Text> : ""}
-                        </Text>
-                    ))}
-                </Box>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Select  <Text color="gray">q</Text> Back</Text>
-            </Box>
+                </box>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+                <text fg="#666666"><span fg="gray">↑↓</span> Navigate  <span fg="gray">Enter</span> Select  <span fg="gray">q</span> Back</text>
+            </box>
         );
     }
 
     if (view === "history") {
-        const allSessions = [...currentDirSessions, ...otherDirSessions];
         return (
-            <Box flexDirection="column" paddingX={2} paddingY={1}>
-                <Text color="cyan" bold>📚 Session History</Text>
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+            <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1} paddingTop={1}>
+                <text fg="cyan"><strong>📚 Session History</strong></text>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
 
-                <Box flexDirection="column" marginY={1}>
-                    <Text bold color="yellow">📂 Current Directory</Text>
+                <box flexDirection="column" marginY={1}>
+                    <text fg="yellow"><strong>📂 Current Directory</strong></text>
                     {currentDirSessions.length === 0 ? (
-                        <Text dimColor>  No sessions</Text>
+                        <text fg="#666666">  No sessions</text>
                     ) : (
                         currentDirSessions.map((s, i) => (
-                            <Text key={s.id} color={i === selectedIdx ? "green" : "white"} bold={i === selectedIdx}>
-                                {i === selectedIdx ? "▸ " : "  "}💬 {s.name || "Session"} <Text dimColor>({s.message_count} msgs)</Text>
-                            </Text>
+                            <text key={s.id}>
+                                <span fg={i === selectedIdx ? "green" : "white"}><strong>{i === selectedIdx ? "▸ " : "  "}</strong></span>
+                                <span fg={i === selectedIdx ? "green" : "white"}>💬 {s.name || "Session"}</span>
+                                <span fg="#666666"> ({String(s.message_count)} msgs)</span>
+                            </text>
                         ))
                     )}
-                </Box>
+                </box>
 
                 {otherDirSessions.length > 0 && (
-                    <Box flexDirection="column" marginY={1}>
-                        <Text bold color="blue">📁 Other Directories</Text>
+                    <box flexDirection="column" marginY={1}>
+                        <text fg="blue"><strong>📁 Other Directories</strong></text>
                         {otherDirSessions.map((s, i) => {
                             const idx = currentDirSessions.length + i;
                             return (
-                                <Text key={s.id} color={idx === selectedIdx ? "green" : "white"} bold={idx === selectedIdx}>
-                                    {idx === selectedIdx ? "▸ " : "  "}📍 {s.path} <Text dimColor>({s.message_count} msgs)</Text>
-                                </Text>
+                                <text key={s.id}>
+                                    <span fg={idx === selectedIdx ? "green" : "white"}><strong>{idx === selectedIdx ? "▸ " : "  "}</strong></span>
+                                    <span fg={idx === selectedIdx ? "green" : "white"}>📍 {s.path}</span>
+                                    <span fg="#666666"> ({String(s.message_count)} msgs)</span>
+                                </text>
                             );
                         })}
-                    </Box>
+                    </box>
                 )}
 
-                <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-                <Text dimColor><Text color="gray">↑↓</Text> Navigate  <Text color="gray">Enter</Text> Load  <Text color="gray">q</Text> Back</Text>
-            </Box>
+                <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
+                <text fg="#666666"><span fg="gray">↑↓</span> Navigate  <span fg="gray">Enter</span> Load  <span fg="gray">q</span> Back</text>
+            </box>
         );
     }
 
     return (
-        <Box flexDirection="column">
-            <Header provider={config.provider} model={config.model} />
+        <box flexDirection="column">
+            {confirmationRequest ? (
+                <ConfirmationDialog
+                    toolName={confirmationRequest.toolName}
+                    args={confirmationRequest.args}
+                    onConfirm={() => {
+                        confirmationRequest.resolve(true);
+                        setConfirmationRequest(null);
+                    }}
+                    onDeny={() => {
+                        confirmationRequest.resolve(false);
+                        setConfirmationRequest(null);
+                    }}
+                />
+            ) : null}
 
-            <Static items={messages}>
-                {(msg) => (
-                    <Box key={msg.id} paddingX={1}>
-                        <MessageComponent
-                            role={msg.role}
-                            content={msg.content}
-                        />
-                    </Box>
-                )}
-            </Static>
+            {!confirmationRequest && (
+                <Layout
+                    header={<Header provider={config.provider} model={config.model} />}
+                    footer={
+                        <box flexDirection="column">
+                            {error && <text fg="red">Error: {error}</text>}
+                            <InputArea onSubmit={handleInput} isLoading={isLoading} />
+                        </box>
+                    }
+                >
+                    {messages.map((msg) => (
+                        <box key={msg.id} marginBottom={1}>
+                            <MessageComponent
+                                role={msg.role}
+                                content={msg.content}
+                            />
+                        </box>
+                    ))}
 
-            {isLoading && (
-                <Box paddingX={1}>
-                    <MessageComponent
-                        role="assistant"
-                        content={streamingContent}
-                        thinking={thinking || undefined}
-                    />
-                </Box>
+                    {isLoading && (
+                        <box marginBottom={1}>
+                            <MessageComponent
+                                role="assistant"
+                                content={streamingContent}
+                                thinking={thinking || undefined}
+                            />
+                        </box>
+                    )}
+                </Layout>
             )}
-
-            <Box flexDirection="column" paddingX={1}>
-                {error && <Text color="red">❌ Error: {error}</Text>}
-                <InputArea onSubmit={handleInput} isLoading={isLoading} />
-            </Box>
-        </Box>
+        </box>
     );
 };

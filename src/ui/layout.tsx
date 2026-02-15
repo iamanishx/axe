@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { useTerminalDimensions } from "@opentui/react";
 
 type LayoutProps = {
     header?: React.ReactNode;
@@ -7,22 +7,26 @@ type LayoutProps = {
     children: React.ReactNode;
 };
 
-export const Layout: React.FC<LayoutProps> = ({ header, footer, children }) => {
+export const Layout = ({ header, footer, children }: LayoutProps) => {
+    const { height } = useTerminalDimensions();
+
     return (
-        <Box flexDirection="column">
-            {header && (
-                <Box borderStyle="single" borderColor="blue" paddingX={1}>
-                    {header}
-                </Box>
-            )}
+        <box flexDirection="column" height={height}>
+            {header ? <box flexShrink={0}>{header}</box> : null}
 
-            <Box flexDirection="column" paddingX={1}>
-                {children}
-            </Box>
+            <box flexDirection="column" flexGrow={1} minHeight={1} overflow="hidden">
+                <scrollbox height="100%" stickyScroll stickyStart="bottom">
+                    <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingBottom={1}>
+                        {children}
+                    </box>
+                </scrollbox>
+            </box>
 
-            <Box flexDirection="column" paddingX={1}>
-                {footer}
-            </Box>
-        </Box>
+            {footer ? (
+                <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingRight={1}>
+                    {footer}
+                </box>
+            ) : null}
+        </box>
     );
 };

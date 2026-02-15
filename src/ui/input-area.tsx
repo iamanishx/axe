@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text, useInput } from "ink";
-import TextInput from "ink-text-input";
-import Spinner from "ink-spinner";
+import { useKeyboard } from "@opentui/react";
 import { Autocomplete } from "./autocomplete";
 import { getAllFiles } from "../lib/filesystem";
 
@@ -10,16 +8,26 @@ type InputAreaProps = {
     isLoading: boolean;
 };
 
-export const InputArea: React.FC<InputAreaProps> = React.memo(({ onSubmit, isLoading }) => {
+export const InputArea = React.memo(({ onSubmit, isLoading }: InputAreaProps) => {
     const [query, setQuery] = useState("");
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredFiles, setFilteredFiles] = useState<string[]>([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [allFiles, setAllFiles] = useState<string[]>([]);
+    const [spinnerFrame, setSpinnerFrame] = useState(0);
 
     useEffect(() => {
         setAllFiles(getAllFiles());
     }, []);
+
+    useEffect(() => {
+        if (!isLoading) return;
+        const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        const interval = setInterval(() => {
+            setSpinnerFrame((prev) => (prev + 1) % frames.length);
+        }, 80);
+        return () => clearInterval(interval);
+    }, [isLoading]);
 
     const handleChange = (value: string) => {
         setQuery(value);
@@ -39,83 +47,87 @@ export const InputArea: React.FC<InputAreaProps> = React.memo(({ onSubmit, isLoa
         }
     };
 
-    useInput((input, key) => {
-        if (key.upArrow) {
-            setSelectedIndex((prev) => Math.max(0, prev - 1));
-        }
+    useKeyboard((key) => {
+        if (showSuggestions) {
+            if (key.name === "up") {
+                setSelectedIndex((prev) => Math.max(0, prev - 1));
+            }
 
-        if (key.downArrow) {
-            setSelectedIndex((prev) => Math.min(filteredFiles.length - 1, prev + 1));
-        }
+            if (key.name === "down") {
+                setSelectedIndex((prev) => Math.min(filteredFiles.length - 1, prev + 1));
+            }
 
-        if (key.return || key.tab) {
-            if (filteredFiles[selectedIndex]) {
-                const parts = query.split(/\s+/);
-                parts.pop();
-                const newQuery = [...parts, `@${filteredFiles[selectedIndex]} `].join(" ");
-                setQuery(newQuery);
+            if (key.name === "enter" || key.name === "return" || key.name === "tab") {
+                if (filteredFiles[selectedIndex]) {
+                    const parts = query.split(/\s+/);
+                    parts.pop();
+                    const newQuery = [...parts, `@${filteredFiles[selectedIndex]} `].join(" ");
+                    setQuery(newQuery);
+                    setShowSuggestions(false);
+                }
+            }
+
+            if (key.name === "escape") {
                 setShowSuggestions(false);
             }
+        } else {
+            if ((key.name === "enter" || key.name === "return") && !isLoading) {
+                if (query.trim()) {
+                    onSubmit(query);
+                    setQuery("");
+                }
+            }
         }
+    });
 
-        if (key.escape) {
-            setShowSuggestions(false);
-        }
-    }, { isActive: showSuggestions });
 
-    const handleSubmit = (value: string) => {
-        if (showSuggestions) {
-            return;
-        }
-
-        if (isLoading || !value.trim()) return;
-        onSubmit(value);
-        setQuery("");
-    };
+    const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    const currentFrame = frames[spinnerFrame];
 
     return (
-        <Box flexDirection="column">
+        <box flexDirection="column">
             {showSuggestions && (
                 <Autocomplete items={filteredFiles} selectedIndex={selectedIndex} />
             )}
 
             {/* Input Box */}
-            <Box
-                borderStyle="round"
+            <box
+                borderStyle="rounded"
                 borderColor={isLoading ? "yellow" : "green"}
-                paddingX={1}
+                paddingLeft={1}
+                paddingRight={1}
             >
                 {isLoading ? (
-                    <Box>
-                        <Text color="yellow">
-                            <Spinner type="dots" />
-                        </Text>
-                        <Text color="yellow"> Thinking...</Text>
-                    </Box>
+                    <box>
+                        <text fg="yellow">
+                            {currentFrame} Thinking...
+                        </text>
+                    </box>
                 ) : (
-                    <Box>
-                        <Text color="green" bold>❯ </Text>
-                        <TextInput
+                    <box flexDirection="row">
+                        <text fg="green"><strong>❯ </strong></text>
+                        <input
+                            flexGrow={1}
                             value={query}
                             onChange={handleChange}
-                            onSubmit={handleSubmit}
                             placeholder="Ask anything... (@ to reference files)"
+                            focused={!showSuggestions}
                         />
-                    </Box>
+                    </box>
                 )}
-            </Box>
+            </box>
 
             {/* Commands hint */}
-            <Box paddingX={1} marginTop={1}>
-                <Text dimColor>
-                    <Text color="gray">/new</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/clear</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/history</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/provider</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/model</Text> <Text dimColor>•</Text>{" "}
-                    <Text color="gray">/agent</Text>
-                </Text>
-            </Box>
-        </Box>
+            <box paddingLeft={1} paddingRight={1}>
+                <text fg="#666666">
+                    <span fg="gray">/new</span> <span fg="#666666">•</span>{" "}
+                    <span fg="gray">/clear</span> <span fg="#666666">•</span>{" "}
+                    <span fg="gray">/history</span> <span fg="#666666">•</span>{" "}
+                    <span fg="gray">/provider</span> <span fg="#666666">•</span>{" "}
+                    <span fg="gray">/model</span>
+                </text>
+            </box>
+        </box>
     );
 });
+

@@ -15,18 +15,21 @@ export type ProviderName =
     | "qwen"
     | "kimi"
     | "gemini"
-    | "minimax";
+    | "minimax"
+    | "exa";
 
 export type Config = {
     provider: ProviderName;
     model: string;
     keys: Partial<Record<ProviderName, string>>;
+    autoAllowedTools: string[];
 };
 
 const DEFAULT_CONFIG: Config = {
     provider: "google",
     model: "gemini-2.5-flash",
     keys: {},
+    autoAllowedTools: [],
 };
 
 export function ensureConfigDir(): void {
@@ -73,4 +76,20 @@ export function setProvider(provider: ProviderName, model: string): void {
     config.provider = provider;
     config.model = model;
     saveConfig(config);
+}
+
+export function getAutoAllowedTools(): string[] {
+    const config = loadConfig();
+    return config.autoAllowedTools || [];
+}
+
+export function addAutoAllowedTool(toolName: string): void {
+    const config = loadConfig();
+    if (!config.autoAllowedTools) {
+        config.autoAllowedTools = [];
+    }
+    if (!config.autoAllowedTools.includes(toolName)) {
+        config.autoAllowedTools.push(toolName);
+        saveConfig(config);
+    }
 }

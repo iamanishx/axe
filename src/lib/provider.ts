@@ -15,7 +15,7 @@ const OPENAI_COMPATIBLE_URLS: Record<string, string> = {
 };
 
 const gemini = createGeminiProvider({
-  authType: 'oauth-personal',
+    authType: 'oauth-personal',
 });
 
 export function getModel(providerName?: ProviderName, modelName?: string) {
@@ -39,7 +39,7 @@ export function getModel(providerName?: ProviderName, modelName?: string) {
 
         case "gemini":
             return gemini(model);
-            
+
         case "openai":
         case "deepseek":
         case "qwen":
@@ -67,5 +67,6 @@ export const PROVIDER_MODELS: Record<ProviderName, string[]> = {
     qwen: ["qwen-turbo", "qwen-plus", "qwen-max"],
     kimi: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
     minimax: ["abab6.5-chat", "abab5.5-chat"],
-    gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview","gemini-3-flash-preview"],
+    gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview", "gemini-3-flash-preview"],
+    exa: [],
 };

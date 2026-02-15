@@ -1,5 +1,4 @@
 import React from "react";
-import { Text, Box } from "ink";
 
 type MessageProps = {
     role: "user" | "assistant" | "system";
@@ -7,32 +6,32 @@ type MessageProps = {
     thinking?: string;
 };
 
-export const MessageComponent: React.FC<MessageProps> = React.memo(({ role, content, thinking }) => {
+export const MessageComponent = React.memo(({ role, content, thinking }: MessageProps) => {
     const isUser = role === "user";
 
     return (
-        <Box flexDirection="column" marginBottom={1}>
+        <box flexDirection="column">
             {/* Message Header */}
-            <Box>
-                <Text color={isUser ? "green" : "cyan"} bold>
-                    {isUser ? "> You" : "| AXE"}
-                </Text>
-            </Box>
+            <box>
+                <text>
+                    <span fg={isUser ? "green" : "cyan"}><strong>{isUser ? "> You" : "| AXE"}</strong></span>
+                </text>
+            </box>
 
             {/* Message Content */}
-            <Box paddingLeft={3} flexDirection="column">
+            <box paddingLeft={2} flexDirection="column">
                 {/* Thinking indicator */}
                 {thinking && (
-                    <Box marginBottom={1}>
-                        <Text color="yellow" dimColor>
-                            💭 {thinking}
-                        </Text>
-                    </Box>
+                    <box>
+                        <text fg="yellow">
+                            <span fg="yellow">thinking...</span>
+                        </text>
+                    </box>
                 )}
 
                 {/* Main content */}
-                <Text wrap="wrap">{content}</Text>
-            </Box>
-        </Box>
+                <text>{content}</text>
+            </box>
+        </box>
     );
 });

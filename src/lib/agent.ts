@@ -1,12 +1,12 @@
-import { ToolLoopAgent, stepCountIs } from "ai";
 import { saveMessage } from "./db.js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { shellTool } from "../tools/shell.js";
 import { getModel } from "./provider.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, getAutoAllowedTools } from "./config.js";
 import { systemprompt } from "./prompt.js";
-import { RalphLoopAgent, iterationCountIs } from 'ralph-loop-agent';
+import { createLLMStream } from "./llm.js";
+import type { ToolSet, Tool } from "ai";
 
 export type AgentMessage = {
     role: "user" | "assistant";
@@ -17,7 +17,45 @@ export type StreamEvent =
     | { type: "text"; content: string }
     | { type: "thinking"; content: string };
 
-export async function* runAgentStream(prompt: string, history: AgentMessage[], agentType: "tool-loop" | "ralph-loop" = "tool-loop"): AsyncGenerator<StreamEvent> {
+type ConfirmationCallback = (toolName: string, args: any) => Promise<boolean>;
+
+function wrapToolsWithHIL(
+    tools: ToolSet,
+    autoAllowed: string[],
+    onConfirmation?: ConfirmationCallback
+): ToolSet {
+    const wrapped: ToolSet = {};
+
+    for (const [name, t] of Object.entries(tools)) {
+        const original = t as Tool;
+        if (!original.execute) {
+            wrapped[name] = original;
+            continue;
+        }
+
+        const originalExecute = original.execute;
+        wrapped[name] = {
+            ...original,
+            execute: async (args: any, options: any) => {
+                if (!autoAllowed.includes(name) && onConfirmation) {
+                    const allowed = await onConfirmation(name, args);
+                    if (!allowed) {
+                        return "Tool execution denied by user.";
+                    }
+                }
+                return originalExecute(args, options);
+            },
+        };
+    }
+
+    return wrapped;
+}
+
+export async function* runAgentStream(
+    prompt: string,
+    history: AgentMessage[],
+    onConfirmation?: ConfirmationCallback
+): AsyncGenerator<StreamEvent> {
     let fsClient: any = null;
     let searchClient: any = null;
 
@@ -29,77 +67,82 @@ export async function* runAgentStream(prompt: string, history: AgentMessage[], a
             transport: new StdioClientTransport({
                 command: "npx",
                 args: ["-y", "@modelcontextprotocol/server-filesystem", process.cwd()],
+                stderr: "ignore",
             }),
         });
 
         searchClient = await createMCPClient({
             transport: new StdioClientTransport({
-                command: "uvx",
-                args: ["duckduckgo-mcp-server"],
+                command: "npx",
+                args: ["-y", "exa-mcp-server"],
+                stderr: "ignore",
             }),
         });
 
         const fsTools = await fsClient.tools();
         const searchTools = await searchClient.tools();
 
-        const tools = {
+        const rawTools: ToolSet = {
             ...fsTools,
             ...searchTools,
             shell: shellTool,
         };
 
+        const autoAllowed = getAutoAllowedTools();
+        const tools = wrapToolsWithHIL(rawTools, autoAllowed, onConfirmation);
+
         const messages: Array<{ role: "user" | "assistant"; content: string }> = [
             ...history.map((h) => ({ role: h.role, content: h.content })),
-            { role: "user" as const, content: prompt },
+            { role: "user", content: prompt },
         ];
 
-        let result;
+        const result = createLLMStream({
+            model,
+            system: systemprompt,
+            messages,
+            tools,
+        });
 
-        if (agentType === "ralph-loop") {
-            let agentInstructions = systemprompt;
-            if (messages.length > 1) {
-                const historyContext = messages.slice(0, -1)
-                    .map(m => `[${m.role.toUpperCase()}]: ${m.content}`)
-                    .join('\n\n');
-                agentInstructions = `${systemprompt}\n\n## Conversation History:\nThe following is the previous conversation with the user. Use this context to understand what has been discussed and done so far.\n\n${historyContext}`;
-            }
-
-            const myAgent = new RalphLoopAgent({
-                model: model,
-                instructions: agentInstructions,
-                tools: tools,
-                stopWhen: iterationCountIs(100),
-            });
-            result = await myAgent.stream({ prompt });
-        } else {
-            const myAgent = new ToolLoopAgent({
-                model: model,
-                instructions: systemprompt,
-                tools: tools,
-                stopWhen: stepCountIs(100),
-            });
-            result = await myAgent.stream({ messages });
-        }
-
-        saveMessage("user", prompt);
         let fullText = "";
 
         for await (const part of result.fullStream) {
-            if (part.type === "text-delta") {
-                const content = part.text;
-                fullText += content;
-                yield { type: "text", content };
-            } else if (part.type === "tool-call") {
-                yield { type: "thinking", content: `Using tool: ${part.toolName}` };
+            switch (part.type) {
+                case "text-delta":
+                    fullText += part.text;
+                    yield { type: "text", content: part.text };
+                    break;
+
+                case "tool-call":
+                    yield { type: "thinking", content: `Using tool: ${part.toolName}` };
+                    break;
+
+                case "tool-result":
+                    yield { type: "thinking", content: `Tool complete: ${part.toolName}` };
+                    break;
+
+                case "error":
+                    yield { type: "text", content: `\nError: ${part.error}` };
+                    break;
+
+                default:
+                    break;
             }
         }
 
+        saveMessage("user", prompt);
         saveMessage("assistant", fullText);
     } catch (error: any) {
-        if (error.name === 'AbortError' ||
-            error.message?.includes('CancelledError') ||
-            error.message?.includes('KeyboardInterrupt') ||
-            error.code === 'ABORT_ERR') {
+        if (
+            error.name === "AbortError" ||
+            error.message?.includes("CancelledError") ||
+            error.message?.includes("KeyboardInterrupt") ||
+            error.code === "ABORT_ERR"
+        ) {
+            return;
+        }
+
+        if (error.message?.includes("denied by user")) {
+            yield { type: "text", content: "\n⚠️ Tool execution was denied." };
             return;
         }
 
