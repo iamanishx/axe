@@ -1,11 +1,11 @@
 import React from "react";
 
 type HeaderProps = {
-    provider: string;
-    model: string;
+    agentCommand: string;
+    status: string;
 };
 
-export const Header = ({ provider, model }: HeaderProps) => {
+export const Header = ({ agentCommand, status }: HeaderProps) => {
     const cwd = process.cwd();
     const dirName = cwd.split("/").pop() || cwd;
 
@@ -17,11 +17,12 @@ export const Header = ({ provider, model }: HeaderProps) => {
                     <span fg="#666666"> • </span>
                     <span fg="yellow">{dirName}</span>
                     <span fg="#666666"> • </span>
-                    <span fg="magenta">{provider}/{model}</span>
+                    <span fg="magenta">[{agentCommand}]</span>
+                    <span fg="#666666"> • </span>
+                    <span fg={status === "connected" ? "green" : "red"}>{status}</span>
                 </text>
             </box>
             <text fg="#666666">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</text>
         </box>
     );
 };
-

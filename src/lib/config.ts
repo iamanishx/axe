@@ -5,30 +5,13 @@ import { join } from "path";
 const CONFIG_DIR = join(homedir(), ".axe");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
-export type ProviderName =
-    | "google"
-    | "openai"
-    | "anthropic"
-    | "groq"
-    | "xai"
-    | "deepseek"
-    | "qwen"
-    | "kimi"
-    | "gemini"
-    | "minimax"
-    | "exa";
-
 export type Config = {
-    provider: ProviderName;
-    model: string;
-    keys: Partial<Record<ProviderName, string>>;
+    agentCommand: string[];
     autoAllowedTools: string[];
 };
 
 const DEFAULT_CONFIG: Config = {
-    provider: "google",
-    model: "gemini-2.5-flash",
-    keys: {},
+    agentCommand: ["gemini", "--acp"],
     autoAllowedTools: [],
 };
 
@@ -60,21 +43,9 @@ export function saveConfig(config: Config): void {
     writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
-export function getApiKey(provider: ProviderName): string | undefined {
+export function setAgentCommand(command: string[]): void {
     const config = loadConfig();
-    return config.keys[provider];
-}
-
-export function setApiKey(provider: ProviderName, key: string): void {
-    const config = loadConfig();
-    config.keys[provider] = key;
-    saveConfig(config);
-}
-
-export function setProvider(provider: ProviderName, model: string): void {
-    const config = loadConfig();
-    config.provider = provider;
-    config.model = model;
+    config.agentCommand = command;
     saveConfig(config);
 }
 

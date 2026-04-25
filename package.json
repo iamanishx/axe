@@ -37,18 +37,9 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.1",
-    "@ai-sdk/google": "^3.0.1",
-    "@ai-sdk/groq": "^3.0.1",
-    "@ai-sdk/mcp": "^1.0.1",
-    "@ai-sdk/openai": "^3.0.1",
-    "@ai-sdk/openai-compatible": "^2.0.1",
-    "@ai-sdk/xai": "^3.0.1",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@opentui/core": "^0.1.79",
     "@opentui/react": "^0.1.79",
-    "ai": "^6.0.3",
-    "ai-sdk-provider-gemini-cli": "^2.0.0",
     "dotenv": "^17.2.3",
     "install": "^0.13.0",
     "react": "^19.2.3",

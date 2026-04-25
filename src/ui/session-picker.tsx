@@ -1,21 +1,27 @@
 import React from "react";
 import { useKeyboard } from "@opentui/react";
-import type { Session } from "../lib/db";
+
+export type ACPSession = {
+    sessionId: string;
+    cwd: string;
+    title?: string;
+    updatedAt?: string;
+};
 
 type SessionPickerProps = {
-    currentDirSessions: Session[];
+    sessions: ACPSession[];
     selectedIndex: number;
-    onSelect: (session: Session | null) => void;
+    onSelect: (session: ACPSession | null) => void;
     onNavigate: (direction: "up" | "down") => void;
 };
 
 export const SessionPicker = ({
-    currentDirSessions,
+    sessions,
     selectedIndex,
     onSelect,
     onNavigate,
 }: SessionPickerProps) => {
-    const totalItems = currentDirSessions.length + 1;
+    const totalItems = sessions.length + 1;
 
     useKeyboard((key) => {
         if (key.name === "up") {
@@ -28,12 +34,13 @@ export const SessionPicker = ({
             if (selectedIndex === 0) {
                 onSelect(null);
             } else {
-                onSelect(currentDirSessions[selectedIndex - 1]);
+                onSelect(sessions[selectedIndex - 1]);
             }
         }
     });
 
-    const formatDate = (dateStr: string) => {
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return "unknown time";
         const date = new Date(dateStr);
         const now = new Date();
         const diffMs = now.getTime() - date.getTime();
@@ -70,27 +77,27 @@ export const SessionPicker = ({
             <box>
                 <text>
                     <span fg={selectedIndex === 0 ? "green" : "white"}><strong>{selectedIndex === 0 ? "▸ " : "  "}</strong></span>
-                    <span fg={selectedIndex === 0 ? "green" : "cyan"}>✨ Start New Session</span>
+                    <span fg={selectedIndex === 0 ? "green" : "cyan"}>✨ Start New Session (Back to chat)</span>
                 </text>
             </box>
 
             {/* Existing Sessions */}
-            {currentDirSessions.length > 0 && (
+            {sessions.length > 0 && (
                 <box flexDirection="column" marginTop={1}>
                     <text fg="#666666"><strong>  Recent Sessions:</strong></text>
-                    {currentDirSessions.map((session, idx) => {
+                    {sessions.map((session, idx) => {
                         const itemIdx = idx + 1;
                         const isSelected = selectedIndex === itemIdx;
                         return (
-                            <box key={session.id} paddingLeft={0}>
+                            <box key={session.sessionId} paddingLeft={0}>
                                 <text>
                                     <span fg={isSelected ? "green" : "white"}><strong>{isSelected ? "▸ " : "  "}</strong></span>
                                     <span fg={isSelected ? "green" : "gray"}>💬 </span>
                                     <span fg={isSelected ? "green" : "white"}>
-                                        {session.name || `Session ${session.id.slice(0, 8)}`}
+                                        {session.title || `Session ${session.sessionId.slice(0, 8)}`}
                                     </span>
                                     <span fg="#666666">
-                                        {" "}({String(session.message_count)} msgs • {formatDate(session.last_message_at)})
+                                        {" "} ( {formatDate(session.updatedAt)} )
                                     </span>
                                 </text>
                             </box>
@@ -112,4 +119,3 @@ export const SessionPicker = ({
         </box>
     );
 };
-

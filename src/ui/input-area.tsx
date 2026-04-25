@@ -1,7 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
 import { Autocomplete } from "./autocomplete";
-import { getAllFiles } from "../lib/filesystem";
+import fs from "fs";
+import path from "path";
+
+function getAllFiles(dir: string = process.cwd(), maxFiles = 1000, currentList: string[] = []): string[] {
+    if (currentList.length >= maxFiles) return currentList;
+    try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (currentList.length >= maxFiles) break;
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+            
+            const fullPath = path.join(dir, entry.name);
+            const relPath = path.relative(process.cwd(), fullPath);
+            
+            if (entry.isDirectory()) {
+                getAllFiles(fullPath, maxFiles, currentList);
+            } else {
+                currentList.push(relPath);
+            }
+        }
+    } catch {
+        // ignore errors
+    }
+    return currentList;
+}
+
 
 type InputAreaProps = {
     onSubmit: (value: string) => void;
